@@ -13,12 +13,13 @@ api.interceptors.request.use(async (config) => {
   try {
     const user = auth.currentUser;
     if (user) {
-      const token = await user.getIdToken();
+      // Forzamos el refresco del token si es necesario (true) para evitar tokens expirados
+      const token = await user.getIdToken(true);
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   } catch (error) {
-    console.error('Error obteniendo token:', error);
+    console.error('Error obteniendo token fresco:', error);
     return config;
   }
 }, (error) => {
@@ -32,11 +33,14 @@ api.interceptors.response.use(
     let message = 'Ocurrió un error inesperado.';
     
     if (error.response) {
-      // El servidor respondió con un status fuera del rango 2xx
-      message = error.response.data?.error || message;
+      // Error 401: Sesión expirada o token inválido
+      if (error.response.status === 401) {
+        message = error.response.data?.error || 'Sesión no autorizada.';
+      } else {
+        message = error.response.data?.error || message;
+      }
     } else if (error.request) {
-      // La petición se hizo pero no hubo respuesta (ej: error de conexión)
-      message = 'No se pudo conectar con el servidor. Verifica tu conexión o si el backend está activo.';
+      message = 'No se pudo conectar con el servidor. Verifica tu conexión.';
     }
 
     console.error('API Error:', message);
