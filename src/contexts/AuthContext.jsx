@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
+  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -39,6 +41,10 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return undefined;
     }
+
+    // Configurar persistencia local explícitamente
+    setPersistence(auth, browserLocalPersistence)
+      .catch((error) => console.error("Error configurando persistencia:", error));
 
     return onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
