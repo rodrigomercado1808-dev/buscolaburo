@@ -42,35 +42,48 @@ export function AuthProvider({ children }) {
       return undefined;
     }
 
-    // Configurar persistencia local explícitamente
-    setPersistence(auth, browserLocalPersistence)
-      .catch((error) => console.error("Error configurando persistencia:", error));
+    // Configurar persistencia local antes de cualquier otra cosa
+    const initAuth = async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        
+        onAuthStateChanged(auth, async (firebaseUser) => {
+          setUser(firebaseUser);
+          if (!firebaseUser) {
+            setProfile(null);
+            setLoading(false);
+            return;
+          }
 
-    return onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (!firebaseUser) {
-        setProfile(null);
+          try {
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            const snapshot = await getDoc(userRef);
+            if (!snapshot.exists()) {
+              const createdProfile = {
+                ...defaultProfile,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || '',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              };
+              await setDoc(userRef, createdProfile);
+              setProfile({ id: firebaseUser.uid, ...createdProfile });
+            } else {
+              setProfile({ id: snapshot.id, ...snapshot.data() });
+            }
+          } catch (err) {
+            console.error("Error obteniendo perfil de Firestore:", err);
+          } finally {
+            setLoading(false);
+          }
+        });
+      } catch (error) {
+        console.error("Error inicializando persistencia:", error);
         setLoading(false);
-        return;
       }
+    };
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const snapshot = await getDoc(userRef);
-      if (!snapshot.exists()) {
-        const createdProfile = {
-          ...defaultProfile,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        await setDoc(userRef, createdProfile);
-        setProfile({ id: firebaseUser.uid, ...createdProfile });
-      } else {
-        setProfile({ id: snapshot.id, ...snapshot.data() });
-      }
-      setLoading(false);
-    });
+    initAuth();
   }, []);
 
   async function register({ email, password, displayName, role }) {
